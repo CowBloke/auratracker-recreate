@@ -1,0 +1,28 @@
+{
+  "name": "auravision",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AuraTracker rebuild — private social gaming platform (foundation prototype).",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "db:generate": "pnpm --filter @aura/db generate",
+    "db:push": "pnpm --filter @aura/db push",
+    "db:migrate": "pnpm --filter @aura/db migrate",
+    "db:seed": "pnpm --filter @aura/db seed",
+    "db:reset": "pnpm --filter @aura/db reset",
+    "db:studio": "pnpm --filter @aura/db studio",
+    "setup": "pnpm install && pnpm db:generate && pnpm db:push && pnpm db:seed"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,0 +1,262 @@
+// AuraTracker data foundation.
+//
+// Dev runs on SQLite for zero-setup. The schema is deliberately
+// Postgres-portable: amounts are integers (no Decimal), "enum" values are
+// stored as strings and enforced by Zod in @aura/contracts, and JSON payloads
+// are stored as text. To move to Postgres: run `pnpm --filter @aura/db
+// use-postgres`, set DATABASE_URL, then `prisma migrate deploy`.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ── Identity & access ────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  usernameLower String  @unique // case-insensitive lookups (portable; SQLite has no citext)
+  email        String   @unique
+  passwordHash String
+
+  // Registration profile
+  firstName   String
+  school      String?
+  schoolLevel String?
+  classLetter String?
+  motivation  String?
+
+  // Roles & lifecycle. role/status are string-typed enums (see @aura/contracts).
+  role   String @default("USER")   // USER | BETA | ADMIN | SUPERADMIN | FISCAL | JUDGE
+  status String @default("PENDING") // PENDING | ACTIVE | REJECTED | BANNED
+
+  banReason       String?
+  banAppealText   String?
+  banAppealStatus String? // NONE | PENDING | ACCEPTED | REJECTED
+
+  // Social identity
+  usernameColor String  @default("#a78bfa")
+  avatarUrl     String?
+  bannerUrl     String?
+  bio           String?
+  introSeen     Boolean @default(false)
+
+  // Referrals
+  referralCode String  @unique
+  referredById String?
+  referredBy   User?   @relation("Referrals", fields: [referredById], references: [id])
+  referrals    User[]  @relation("Referrals")
+
+  approvedAt   DateTime?
+  approvedById String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  sessions        Session[]
+  balances        Balance[]
+  ledgerEntries   LedgerEntry[]   @relation("LedgerOwner")
+  rewardGrants    RewardGrant[]
+  scores          GameScore[]
+  highScores      HighScore[]
+  notifications   Notification[]
+  badges          UserBadge[]
+  auditLogs       AuditLog[]      @relation("AuditActor")
+  sentTransfers   AuraTransfer[]  @relation("TransferFrom")
+  recvTransfers   AuraTransfer[]  @relation("TransferTo")
+  following       Follow[]        @relation("Follower")
+  followers       Follow[]        @relation("Following")
+
+  @@index([role])
+  @@index([status])
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique // sha-256 of the opaque session token (never store raw)
+  userAgent  String?
+  ip         String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// ── Economy: ledger + cached balances ────────────────────────────────────────
+
+/// Cached, fast-read balance per (user, currency). Source of truth for display
+/// and leaderboards. Mutated only alongside a LedgerEntry inside a transaction.
+model Balance {
+  id       String @id @default(cuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currency String // MONEY | AURA
+  amount   Int    @default(0)
+
+  @@unique([userId, currency])
+}
+
+/// Immutable, append-only economic log. Every money/aura movement writes one
+/// row. idempotencyKey makes economic writes safe to retry exactly once.
+model LedgerEntry {
+  id             String  @id @default(cuid())
+  userId         String
+  user           User    @relation("LedgerOwner", fields: [userId], references: [id], onDelete: Cascade)
+  currency       String  // MONEY | AURA
+  amount         Int     // signed delta
+  balanceAfter   Int
+  reason         String  // REWARD | TRANSFER_IN | TRANSFER_OUT | ADMIN_GRANT | PURCHASE | ...
+  refType        String?
+  refId          String?
+  metadata       String? // JSON-as-text
+  idempotencyKey String? @unique
+  createdAt      DateTime @default(now())
+
+  @@index([userId, currency, createdAt])
+  @@index([createdAt])
+}
+
+// ── Rewards & progression ────────────────────────────────────────────────────
+
+model RewardGrant {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameId    String
+  currency  String   // MONEY | AURA
+  amount    Int
+  scoreId   String?
+  dayKey    String   // Europe/Paris day, e.g. 2026-06-18 — for daily-cap aggregation
+  createdAt DateTime @default(now())
+
+  @@index([userId, currency, dayKey])
+  @@index([gameId])
+}
+
+model GameScore {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameId    String
+  score     Int
+  isRecord  Boolean  @default(false)
+  dayKey    String
+  createdAt DateTime @default(now())
+
+  @@index([gameId, score])
+  @@index([userId, gameId])
+}
+
+model HighScore {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameId     String
+  bestScore  Int
+  achievedAt DateTime @default(now())
+
+  @@unique([userId, gameId])
+  @@index([gameId, bestScore])
+}
+
+// ── Aura transfers (gift system with daily sender cap) ───────────────────────
+
+model AuraTransfer {
+  id         String   @id @default(cuid())
+  fromUserId String
+  fromUser   User     @relation("TransferFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId   String
+  toUser     User     @relation("TransferTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  amount     Int
+  message    String?
+  dayKey     String
+  createdAt  DateTime @default(now())
+
+  @@index([fromUserId, dayKey])
+  @@index([toUserId])
+}
+
+// ── Social ───────────────────────────────────────────────────────────────────
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  follower    User     @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String
+  following   User     @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followingId])
+  @@index([followingId])
+}
+
+// ── Badges ───────────────────────────────────────────────────────────────────
+
+model Badge {
+  id          String      @id // stable code, e.g. "first_steps"
+  name        String
+  description String
+  icon        String      @default("Award")
+  rarity      String      @default("common") // common | rare | epic | legendary
+  createdAt   DateTime    @default(now())
+  users       UserBadge[]
+}
+
+model UserBadge {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeId   String
+  badge     Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  equipped  Boolean  @default(false)
+  awardedAt DateTime @default(now())
+
+  @@unique([userId, badgeId])
+  @@index([userId])
+}
+
+// ── Notifications ────────────────────────────────────────────────────────────
+
+model Notification {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       String    // REWARD | TRANSFER | BADGE | ADMIN | SYSTEM | SOCIAL
+  title      String
+  body       String?
+  data       String?   // JSON-as-text
+  readAt     DateTime?
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}
+
+// ── Admin audit log ──────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  action     String   // USER_APPROVE | USER_REJECT | USER_BAN | ROLE_CHANGE | AURA_GRANT | ...
+  targetType String?
+  targetId   String?
+  summary    String
+  metadata   String?  // JSON-as-text
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([action, createdAt])
+  @@index([createdAt])
+}

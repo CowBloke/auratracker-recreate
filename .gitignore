@@ -1,0 +1,22 @@
+node_modules/
+dist/
+build/
+.turbo/
+.vite/
+coverage/
+*.log
+*.tsbuildinfo
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Prisma / SQLite
+packages/db/prisma/*.db
+packages/db/prisma/*.db-journal
+packages/db/prisma/migrations/dev.db*
+
+# OS
+.DS_Store
+Thumbs.db

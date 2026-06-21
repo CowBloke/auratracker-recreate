@@ -1,0 +1,154 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;450;500;600;700&display=swap');
+@import 'tailwindcss';
+
+/* ── Design tokens ──────────────────────────────────────────────────────────
+   AuraTracker's look: a nocturnal indigo canvas with neon "aura" accents,
+   glassy surfaces, soft glows and fluid motion. Tokens are exposed as Tailwind
+   theme variables so utilities like `bg-surface` / `text-aura` just work. */
+@theme {
+  --color-base: #0a0a14;
+  --color-base-2: #0e0e1d;
+  --color-surface: #14142a;
+  --color-surface-2: #1b1b38;
+  --color-line: #2a2a4d;
+  --color-line-soft: #20203f;
+
+  --color-ink: #ecebff;
+  --color-muted: #a6a6cf;
+  --color-faint: #6f6f9b;
+
+  --color-aura: #a78bfa;
+  --color-aura-deep: #7c3aed;
+  --color-cyan: #38bdf8;
+  --color-emerald: #34d399;
+  --color-amber: #fbbf24;
+  --color-rose: #fb7185;
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.75rem;
+
+  --shadow-glow: 0 0 0 1px color-mix(in oklab, var(--color-aura) 30%, transparent),
+    0 18px 60px -20px color-mix(in oklab, var(--color-aura) 55%, transparent);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-line-soft);
+  }
+  html {
+    color-scheme: dark;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    color: var(--color-ink);
+    background: var(--color-base);
+    background-image:
+      radial-gradient(60rem 60rem at 12% -10%, color-mix(in oklab, var(--color-aura-deep) 26%, transparent), transparent 60%),
+      radial-gradient(50rem 50rem at 100% 0%, color-mix(in oklab, var(--color-cyan) 16%, transparent), transparent 55%),
+      radial-gradient(70rem 50rem at 50% 120%, color-mix(in oklab, var(--color-aura) 12%, transparent), transparent 60%);
+    background-attachment: fixed;
+    min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--color-aura) 40%, transparent);
+    color: white;
+  }
+  /* Slim, themed scrollbars */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, var(--color-aura) 30%, transparent);
+    border-radius: 99px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: color-mix(in oklab, var(--color-aura) 50%, transparent); background-clip: content-box; }
+  :focus-visible {
+    outline: 2px solid var(--color-aura);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+}
+
+/* ── Reusable surfaces & effects ─────────────────────────────────────────── */
+@layer components {
+  .glass {
+    background: color-mix(in oklab, var(--color-surface) 80%, transparent);
+    backdrop-filter: blur(16px) saturate(140%);
+    border: 1px solid color-mix(in oklab, white 7%, transparent);
+  }
+  .card {
+    position: relative;
+    border-radius: var(--radius-xl);
+    background:
+      linear-gradient(180deg, color-mix(in oklab, white 5%, transparent), transparent 40%),
+      color-mix(in oklab, var(--color-surface) 88%, transparent);
+    border: 1px solid var(--color-line);
+    backdrop-filter: blur(14px);
+  }
+  .card-hover {
+    transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.35s, box-shadow 0.35s;
+  }
+  .card-hover:hover {
+    transform: translateY(-4px);
+    border-color: color-mix(in oklab, var(--color-aura) 45%, var(--color-line));
+    box-shadow: var(--shadow-glow);
+  }
+  .aura-text {
+    background: linear-gradient(100deg, var(--color-aura), var(--color-cyan) 60%, var(--color-emerald));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .ring-aura {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-aura) 40%, transparent),
+      0 0 30px -8px color-mix(in oklab, var(--color-aura) 60%, transparent);
+  }
+  .noise::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0.4;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  }
+}
+
+/* ── Keyframes ───────────────────────────────────────────────────────────── */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes pop-in {
+  0% { transform: scale(0.6); opacity: 0; }
+  70% { transform: scale(1.06); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.animate-float { animation: float 6s ease-in-out infinite; }
+.animate-pulse-glow { animation: pulse-glow 2.4s ease-in-out infinite; }
+.animate-pop { animation: pop-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.skeleton {
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, white 7%, transparent), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
